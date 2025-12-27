@@ -394,13 +394,15 @@
 
         // Placeholder functions for export buttons
         function exportCSV() {
-            alert('Export to CSV functionality not implemented yet.');
-            // Add actual CSV export logic here
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            window.location.href = `/export/csv?startDate=${startDate}&endDate=${endDate}`;
         }
 
         function exportPDF() {
-            alert('Export to PDF functionality not implemented yet.');
-            // Add actual PDF export logic here (e.g., using jsPDF)
+              const startDate = document.getElementById('startDate').value;
+              const endDate = document.getElementById('endDate').value;
+              window.location.href = `/export/pdf?startDate=${startDate}&endDate=${endDate}`;
         }
     </script>
 

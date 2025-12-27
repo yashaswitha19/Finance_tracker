@@ -1,7 +1,11 @@
 import express from "express";
 import pg from "pg";
 import session from 'express-session';
-
+import { Parser } from 'json2csv';
+import PDFDocument from 'pdfkit';
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 const app = express();
 const port = 3000;
 
@@ -359,6 +363,7 @@ app.get('/home', isAuthenticated, async (req, res) => {
 
     // Step 1: Get current month start date
     const now = new Date();
+    const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
     const currentMonthStart = new Date(currentYear, currentMonth - 1, 1);
@@ -380,7 +385,8 @@ app.get('/home', isAuthenticated, async (req, res) => {
       text: `
         SELECT type, SUM(amount) AS total
         FROM transactions
-        WHERE user_id = $1
+        WHERE user_id = $1 
+          AND date_trunc('month', date) = date_trunc('month', CURRENT_DATE)
         GROUP BY type
       `,
       values: [userId]
@@ -390,9 +396,9 @@ app.get('/home', isAuthenticated, async (req, res) => {
       text: `
         SELECT budget_amount
         FROM budget
-        WHERE month_year = $1 AND user_id = $2
+        WHERE month_year >= $1 AND month_year < $2 AND user_id = $3
       `,
-      values: [currentMonthStart.toISOString().split('T')[0], userId]
+      values: [currentMonthStart.toISOString().split('T')[0],nextMonthStart.toISOString().split('T')[0], userId]
     };
 
     const transactionsQuery = {
@@ -787,6 +793,7 @@ app.post("/managetr", async (req, res) => {
       SELECT COALESCE(SUM(amount), 0) AS total_income 
       FROM transactions 
       ${incomeWhereClause}
+      AND type = 'income'
     `;
     const incomeResult = await db.query(incomeQuery, incomeParams);
     const totalIncome = parseFloat(incomeResult.rows[0].total_income) || 0;
@@ -795,6 +802,7 @@ app.post("/managetr", async (req, res) => {
       SELECT COALESCE(SUM(amount), 0) AS total_expense 
       FROM transactions 
       ${expenseWhereClause}
+      AND type = 'expense'
     `;
     const expenseResult = await db.query(expenseQuery, expenseParams);
     const totalExpense = parseFloat(expenseResult.rows[0].total_expense) || 0;
@@ -936,7 +944,7 @@ app.post("/login", async (req, res) => {
   req.session.user = { email };
   try {
     const result = await db.query(
-      "SELECT id, name, password FROM users WHERE email = $1",
+      "SELECT id, name, password,profile_pic FROM users WHERE email = $1",
       [email]
     );
 
@@ -945,13 +953,15 @@ app.post("/login", async (req, res) => {
       res.render("login.ejs");
     }
     const user = result.rows[0];
+
     if (user.password != passwordentered) {
       res.render("login.ejs");
     }
      req.session.user = {
       id : user.id,
       email: email,
-      name: user.name
+      name: user.name,
+      profile_pic: user.profile_pic 
     };
     res.redirect('/home');
   } catch (err) {
@@ -1135,6 +1145,177 @@ app.get('/signout', (req, res) => {
     if (err) throw err;
     res.redirect('/');
   });
+});
+
+app.get("/export/csv", isAuthenticated, async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;  // Dates from query string
+    const userId = req.session.user.id;
+
+    if (!startDate || !endDate) {
+      return res.status(400).send("Start and end dates required for export");
+    }
+
+    // Generate the same report data as your /report route
+    const reportData = await generateReportData(startDate, endDate, userId);
+
+    // Combine all data into one CSV-friendly array
+    const allData = [];
+
+    reportData.incomeReport.forEach(item => {
+      allData.push({
+        Type: "Income",
+        Category: item.category,
+        Transactions: item.count,
+        Amount: item.amount,
+        Percentage: item.percentage,
+        Month: "",
+        Balance: ""
+      });
+    });
+
+    reportData.expenseReport.forEach(item => {
+      allData.push({
+        Type: "Expense",
+        Category: item.category,
+        Transactions: item.count,
+        Amount: item.amount,
+        Percentage: item.percentage,
+        Month: "",
+        Balance: ""
+      });
+    });
+
+    reportData.monthlyBreakdown.forEach(item => {
+      allData.push({
+        Type: "Monthly",
+        Category: "",
+        Transactions: "",
+        Amount: item.income,
+        Percentage: "",
+        Month: item.month,
+        Balance: item.balance
+      });
+    });
+
+    const parser = new Parser({ fields: ["Type", "Category", "Transactions", "Amount", "Percentage", "Month", "Balance"] });
+    const csv = parser.parse(allData);
+
+    res.header("Content-Type", "text/csv");
+    res.attachment("financial_report.csv");
+    return res.send(csv);
+
+  } catch (err) {
+    console.error("Error exporting CSV:", err);
+    res.status(500).send("Server error");
+  }
+});
+
+
+app.get("/export/pdf", isAuthenticated, async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    const userId = req.session.user.id;
+
+    if (!startDate || !endDate) {
+      return res.status(400).send("Start and end dates required for export");
+    }
+
+    const reportData = await generateReportData(startDate, endDate, userId);
+
+    const doc = new PDFDocument({ margin: 30, size: 'A4' });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", "attachment; filename=financial_report.pdf");
+    doc.pipe(res);
+
+    doc.fontSize(20).text("Financial Report", { align: "center" });
+    doc.moveDown();
+
+    // Income Report
+    if (reportData.incomeReport.length > 0) {
+      doc.fontSize(16).fillColor('green').text("Income Report", { underline: true });
+      reportData.incomeReport.forEach(item => {
+        doc.fontSize(12).fillColor('black')
+          .text(`${item.category} | Transactions: ${item.count} | Amount: ₹${item.amount.toLocaleString('en-IN')} | ${item.percentage}%`);
+      });
+      doc.moveDown();
+    }
+
+    // Expense Report
+    if (reportData.expenseReport.length > 0) {
+      doc.fontSize(16).fillColor('red').text("Expense Report", { underline: true });
+      reportData.expenseReport.forEach(item => {
+        doc.fontSize(12).fillColor('black')
+          .text(`${item.category} | Transactions: ${item.count} | Amount: ₹${item.amount.toLocaleString('en-IN')} | ${item.percentage}%`);
+      });
+      doc.moveDown();
+    }
+
+    // Monthly Breakdown
+    if (reportData.monthlyBreakdown.length > 0) {
+      doc.fontSize(16).fillColor('blue').text("Monthly Breakdown", { underline: true });
+      reportData.monthlyBreakdown.forEach(item => {
+        doc.fontSize(12).fillColor('black')
+          .text(`${item.month} | Income: ₹${item.income.toLocaleString('en-IN')} | Expense: ₹${item.expense.toLocaleString('en-IN')} | Balance: ₹${item.balance.toLocaleString('en-IN')}`);
+      });
+    }
+
+    doc.end();
+
+  } catch (err) {
+    console.error("Error exporting PDF:", err);
+    res.status(500).send("Server error");
+  }
+});
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = path.join("public", "uploads", "profiles");
+    fs.mkdirSync(uploadPath, { recursive: true });
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `${req.session.user.id}_${Date.now()}${ext}`);
+  }
+});
+
+const fileFilter = (req, file, cb) => {
+  if (file.mimetype.startsWith("image/")) cb(null, true);
+  else cb(new Error("Only image files are allowed"), false);
+};
+
+const upload = multer({ storage, fileFilter, limits: { fileSize: 2 * 1024 * 1024 } }); // 2MB
+
+// 2. Route to update profile picture
+app.post("/update-profile-picture", upload.single("profilePic"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).send("No file uploaded");
+
+    const userId = req.session.user.id;
+    const newProfilePic = `/uploads/profiles/${req.file.filename}`;
+
+    // Optional: delete old picture if exists
+    const oldPic = req.session.user.profile_pic;
+    if (oldPic && oldPic !== "/uploads/default-avatar.png") {
+      const oldPath = path.join("public", oldPic);
+      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    }
+
+    // Update DB
+    await db.query(
+      "UPDATE users SET profile_pic = $1 WHERE id = $2",
+      [newProfilePic, userId]
+    );
+
+    // Update session
+    req.session.user.profile_pic = newProfilePic;
+
+    res.redirect("/profile"); // or wherever you want
+  } catch (err) {
+    console.error("Error updating profile picture:", err);
+    res.status(500).send("Server error");
+  }
 });
 
 app.listen(port, () => {
