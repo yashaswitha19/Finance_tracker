@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Budget Management - Finance Hub</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link  rel="stylesheet" href="styles/style.css">
+
+</head>
+
+<body>
+    <%- include('partials/sidebar', {Active: 'budget',user: user }) %>
+
+        <div class="main-content">
+            <h1 class="page-title"><i class="bi bi-piggy-bank me-2"></i>Budget Management</h1>
+
+            <!-- Set Monthly Budget -->
+            <div class="card">
+                <div class="card-header bg-primary">
+                    <i class="bi bi-calendar-check me-2"></i>Set Monthly Budget
+                </div>
+                <div class="card-body">
+                    <form action="/budget" method="POST" class="row g-3">
+                        <div class="col-md-6">
+                            <label for="budgetAmount" class="form-label">Budget Amount (₹)</label>
+                            <div class="input-group">
+                                <span class="input-group-text">₹</span>
+                                <input type="number" class="form-control" id="budgetAmount" name="amount"
+                                    placeholder="Enter budget limit" step="100" min="0"
+                                    value="<%= budgetLimit > 0 ? budgetLimit : '' %>" required>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="budgetMonth" class="form-label">Month</label>
+                            <input type="month" class="form-control" id="budgetMonth" name="month"
+                                value="<%= currentMonth %>" required>
+                        </div>
+
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-check-circle me-2"></i>Set Budget
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Current Month Summary -->
+            <div class="card">
+                <div class="card-header bg-light">
+                    <i class="bi bi-calendar-month me-2"></i>Current Month Summary
+                </div>
+                <div class="card-body">
+                    <% if (budgetLimit> 0) { %>
+                        <div class="row g-4 mb-4">
+                            <div class="col-md-4">
+                                <div class="summary-box">
+                                    <h6>Budget Limit</h6>
+                                    <h3 class="text-primary">₹<%= budgetLimit.toLocaleString('en-IN') %>
+                                    </h3>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="summary-box">
+                                    <h6>Spent So Far</h6>
+                                    <h3 class="text-danger">₹<%= spentAmount.toLocaleString('en-IN') %>
+                                    </h3>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="summary-box">
+                                    <h6>Remaining</h6>
+                                    <h3 class="<%= remaining >= 0 ? 'text-success' : 'text-danger' %>">
+                                        ₹<%= Math.abs(remaining).toLocaleString('en-IN') %>
+                                            <% if (remaining < 0) { %> (Over)<% } %>
+                                    </h3>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Progress Bar -->
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="text-muted">Budget Usage</span>
+                                <span class="fw-bold">
+                                    <%= percentage %>%
+                                </span>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar <%= percentage >= 100 ? 'bg-danger' : (percentage >= 80 ? 'bg-warning' : 'bg-success') %> progress-bar-striped"
+                                    role="progressbar" style="width: <%= Math.min(percentage, 100) %>%"
+                                    aria-valuenow="<%= percentage %>" aria-valuemin="0" aria-valuemax="100">
+                                    <%= percentage %>%
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Status Alert -->
+                        <div class="alert alert-<%= status %> mb-0">
+                            <i class="bi bi-<%= statusIcon %>"></i>
+                            <strong>
+                                <%= status==='success' ? 'Great!' : (status==='warning' ? 'Caution!' : 'Warning!' ) %>
+                            </strong>
+                            <%= statusMessage %>
+                        </div>
+                        <% } else { %>
+                            <div class="empty-state">
+                                <i class="bi bi-piggy-bank"></i>
+                                <p>No budget set for the current month. Set a budget above to start tracking.</p>
+                            </div>
+                            <% } %>
+                </div>
+            </div>
+
+            <!-- Historical Budgets -->
+            <div class="card">
+                <div class="card-header bg-light">
+                    <i class="bi bi-clock-history me-2"></i>Budget History
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Month</th>
+                                    <th>Budget Limit</th>
+                                    <th>Spent</th>
+                                    <th>Remaining</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% if (budgetHistory.length> 0) { %>
+                                    <% budgetHistory.forEach(item=> { %>
+                                        <tr>
+                                            <td><strong>
+                                                    <%= item.month %>
+                                                </strong></td>
+                                            <td style="color: #2196F3; font-weight: 600;">₹<%=
+                                                    item.budget.toLocaleString('en-IN') %>
+                                            </td>
+                                            <td style="color: #dc3545; font-weight: 600;">₹<%=
+                                                    item.spent.toLocaleString('en-IN') %>
+                                            </td>
+                                            <td
+                                                style="color: <%= item.remaining >= 0 ? '#28a745' : '#dc3545' %>; font-weight: 600;">
+                                                ₹<%= Math.abs(item.remaining).toLocaleString('en-IN') %>
+                                                    <% if (item.remaining < 0) { %> (Over)<% } %>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-<%= item.statusClass %>">
+                                                    <i
+                                                        class="bi bi-<%= item.statusClass === 'success' ? 'check-circle' : 'exclamation-circle' %>"></i>
+                                                    <%= item.status %>
+                                                </span>
+                                            </td>
+                                        </tr>
+                                        <% }); %>
+                                            <% } else { %>
+                                                <tr>
+                                                    <td colspan="5">
+                                                        <div class="empty-state">
+                                                            <i class="bi bi-inbox"></i>
+                                                            <p>No budget history available</p>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                <% } %>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <div class="chart-card">
+                        <h5><i class="bi bi-bar-chart me-2"></i>Monthly Spending Trend</h5>
+                        <% if (chartData.labels.length> 0) { %>
+                            <canvas id="budgetBarChart"></canvas>
+                            <% } else { %>
+                                <div class="empty-state">
+                                    <i class="bi bi-bar-chart"></i>
+                                    <p>No data available for chart</p>
+                                </div>
+                                <% } %>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="chart-card">
+                        <h5><i class="bi bi-graph-up me-2"></i>Remaining Budget Trend</h5>
+                        <% if (chartData.labels.length> 0) { %>
+                            <canvas id="remainingLineChart"></canvas>
+                            <% } else { %>
+                                <div class="empty-state">
+                                    <i class="bi bi-graph-up"></i>
+                                    <p>No data available for chart</p>
+                                </div>
+                                <% } %>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script>
+document.addEventListener('DOMContentLoaded', function () {
+    
+    // Check if chartData exists and has labels
+    <% if (typeof chartData !== 'undefined' && chartData.labels && chartData.labels.length > 0) { %>
+
+        // === 1. Monthly Spending Trend (Bar Chart) ===
+        const barCtx = document.getElementById('budgetBarChart');
+        if (barCtx) {
+            new Chart(barCtx, {
+                type: 'bar',
+                data: {
+                    labels: <%- JSON.stringify(chartData.labels) %>,
+                    datasets: [{
+                        label: 'Spent',
+                        data: <%- JSON.stringify(chartData.spent) %>,
+                        backgroundColor: '#dc3545',
+                        borderColor: '#dc3545',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    // We do NOT set maintainAspectRatio: false
+                    // so it respects your CSS max-height
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function (value) {
+                                    return '₹' + value.toLocaleString('en-IN');
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // === 2. Remaining Budget Trend (Line Chart) ===
+        const lineCtx = document.getElementById('remainingLineChart');
+        if (lineCtx) {
+            new Chart(lineCtx, {
+                type: 'line',
+                data: {
+                    labels: <%- JSON.stringify(chartData.labels) %>,
+                    datasets: [{
+                        label: 'Remaining',
+                        data: <%- JSON.stringify(chartData.remaining) %>,
+                        borderColor: '#28a745',
+                        backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                        fill: true,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            // We do NOT set beginAtZero: true here
+                            // to allow for negative (over-budget) values
+                            ticks: {
+                                callback: function (value) {
+                                    return '₹' + value.toLocaleString('en-IN');
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+    <% } else { %>
+        console.warn('Budget charts not rendered: chartData is missing or empty.');
+    <% } %>
+});
+</script>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>
