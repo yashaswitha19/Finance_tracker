@@ -8,11 +8,16 @@ import path from "path";
 import fs from "fs";
 const app = express();
 const port = 3000;
-
+const PORT = process.env.PORT || 3000;
 app.set('view engine', 'ejs');
 
+// app.use(session({
+//   secret: 'yashu',   // change this
+//   resave: false,
+//   saveUninitialized: false
+// }));
 app.use(session({
-  secret: 'yashu',   // change this
+  secret: process.env.SESSION_SECRET || "dev_secret",
   resave: false,
   saveUninitialized: false
 }));
@@ -25,12 +30,16 @@ app.use((req, res, next) => {
 app.use(express.static("public"));
 app.use(express.urlencoded({ extended: true }));
 
+// const db = new pg.Client({
+//   user: "postgres",
+//   host: "localhost",
+//   database: "financedb",
+//   password: "Yashu@19",
+//   port: 5432,
+// });
 const db = new pg.Client({
-  user: "postgres",
-  host: "localhost",
-  database: "financedb",
-  password: "Yashu@19",
-  port: 5432,
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }   // required on Render
 });
 db.connect();
 
@@ -1318,7 +1327,7 @@ app.post("/update-profile-picture", upload.single("profilePic"), async (req, res
   }
 });
 
-app.listen(port, () => {
+app.listen(PORT, () => {
   console.log("listening on port 3000");
 });
  
