@@ -1,3 +1,5 @@
+import dotenv from "dotenv";
+dotenv.config();
 import express from "express";
 import pg from "pg";
 import session from 'express-session';
@@ -6,21 +8,21 @@ import PDFDocument from 'pdfkit';
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import passport from "passport";
+import { Strategy as GoogleStrategy } from "passport-google-oauth20";
+
+console.log("DB CONFIG =", {
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_NAME,
+  password: typeof process.env.DB_PASSWORD,
+  connectionString: process.env.DATABASE_URL ? "present" : "missing"
+});
+const { Client } = pg;
+let db;
 const app = express();
 const port = 3000;
 const PORT = process.env.PORT || 3000;
-app.set('view engine', 'ejs');
-
-// app.use(session({
-//   secret: 'yashu',   // change this
-//   resave: false,
-//   saveUninitialized: false
-// }));
-app.use(session({
-  secret: process.env.SESSION_SECRET || "dev_secret",
-  resave: false,
-  saveUninitialized: false
-}));
 
 app.use((req, res, next) => {
   res.locals.user = req.session ? req.session.user : null;
@@ -30,26 +32,129 @@ app.use((req, res, next) => {
 app.use(express.static("public"));
 app.use(express.urlencoded({ extended: true }));
 
-// const db = new pg.Client({
-//   user: "postgres",
-//   host: "localhost",
-//   database: "financedb",
-//   password: "Yashu@19",
-//   port: 5432,
-// });
-const db = new pg.Client({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }   // required on Render
-});
+app.set('view engine', 'ejs');
+app.use(session({
+  secret: process.env.SESSION_SECRET || "dev_secret",
+  resave: false,
+  saveUninitialized: false
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+
+
+// serialize user
+passport.serializeUser((user, done) => done(null, user));
+passport.deserializeUser((user, done) => done(null, user));
+
+passport.use(
+  new GoogleStrategy(
+    {
+      clientID: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      callbackURL: "https://finance-tracker-qcfk.onrender.com/auth/google/callback",
+      proxy:true
+    },
+    (accessToken, refreshToken, profile, done) => {
+      return done(null, profile);
+    }
+  )
+);
+
+if (process.env.DATABASE_URL) {
+  // Render / production
+  db = new Client({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+  });
+} else {
+  // Local
+  db = new Client({
+    user: process.env.DB_USER || "postgres",
+    password: process.env.DB_PASSWORD || "Yashu@19",
+    host: process.env.DB_HOST || "localhost",
+    port: process.env.DB_PORT || 5432,
+    database: process.env.DB_NAME || "financedb",
+    ssl: false,
+  });
+}
+
+
 db.connect();
 
-function isAuthenticated(req, res, next) {
-  if (req.session && req.session.user) {
-    next(); // user is logged in
-  } else {
-    res.redirect('/login'); // redirect to login page
+
+app.get(
+  "/auth/google",
+  passport.authenticate("google", { scope: ["profile", "email"] })
+);
+
+app.get("/auth/google/callback",
+  passport.authenticate("google", { failureRedirect: "/signup" }),
+  async (req, res) => {
+    try {
+      console.log("✅ Google auth successful, user data:", req.user);
+      
+      // Extract Google profile information
+      const googleProfile = req.user;
+      const email = googleProfile.emails[0].value;
+      const name = googleProfile.displayName;
+      const profilePic = googleProfile.photos?.[0]?.value || null;
+      
+      // Check if user already exists in your database
+      let result = await db.query(
+        "SELECT id, name, email, profile_pic FROM users WHERE email = $1",
+        [email]
+      );
+      
+      let user;
+      
+      if (result.rows.length === 0) {
+        // User doesn't exist - create new user in database
+        console.log("📝 Creating new user for:", email);
+        const insertResult = await db.query(
+          "INSERT INTO users (name, email, profile_pic) VALUES ($1, $2, $3) RETURNING name, email, profile_pic",
+          [name, email, profilePic]
+        );
+        user = insertResult.rows[0];
+      } else {
+        // User exists - use existing user
+        console.log("👤 Existing user found:", email);
+        user = result.rows[0];
+      }
+      
+      // THIS IS THE KEY PART: Create session in YOUR format
+      // This is exactly what your /login POST route does
+      req.session.user = {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        profile_pic: user.profile_pic
+      };
+      
+      console.log("✅ Session created:", req.session.user);
+      
+      // NOW redirect to home (user is logged in)
+      res.redirect("/home");
+      
+    } catch (err) {
+      console.error("❌ Error in Google callback:", err);
+      res.redirect("/signup");
+    }
   }
-} 
+);
+
+
+
+
+
+function isAuthenticated(req, res, next) {
+  if (req.isAuthenticated()) {
+    return next();
+  }
+  return res.redirect("/login");
+}
+
 
 // helpers/getDashboardData.js or in the same file
 async function getDashboardData(userId) {
@@ -1326,6 +1431,7 @@ app.post("/update-profile-picture", upload.single("profilePic"), async (req, res
     res.status(500).send("Server error");
   }
 });
+
 
 app.listen(PORT, () => {
   console.log("listening on port 3000");
