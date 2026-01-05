@@ -1139,9 +1139,8 @@ app.post("/budget", async (req, res) => {
    VALUES ($1, $2, $3)
    ON CONFLICT (month_year, user_id)
    DO UPDATE SET
-     budget_amount = EXCLUDED.budget_amount,
-     updated_at = CURRENT_TIMESTAMP`,
-  [monthDateStr, budgetAmount, userId]
+     budget_amount = EXCLUDED.budget_amount`,
+    [monthDateStr, budgetAmount, userId]
   );
 
 
