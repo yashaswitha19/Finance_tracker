@@ -14,6 +14,11 @@
         <main class="form-signin w-75 m-auto">
             <form action="/login" method="POST"> <img class="mb-4" src="/docs/5.3/assets/brand/bootstrap-logo.svg" alt="" width="72" height="57">
                 <h1 class="h3 mb-3 fw-normal">Please sign in</h1>
+                <div class="form-floating mb-3">
+                <% if (typeof error !== 'undefined') { %>
+                  <div class="alert alert-warning"><%= error %></div>
+                <% } %>
+                </div>
                 <div class="form-floating mb-3"> <input type="email" name="email" class="form-control" id="floatingInput"
                         placeholder="name@example.com" fdprocessedid="qoli2h" required> <label for="floatingInput">Email
                         address</label> </div>

@@ -1054,36 +1054,55 @@ app.post("/signup", (req, res) => {
 });
 
 app.post("/login", async (req, res) => {
-  const email = req.body["email"];
-  const passwordentered = req.body["password"];
-  req.session.user = { email };
+  const email = req.body.email;
+  const passwordentered = req.body.password;
+
   try {
     const result = await db.query(
-      "SELECT id, name, password,profile_pic FROM users WHERE email = $1",
+      "SELECT id, name, password, profile_pic FROM users WHERE email = $1",
       [email]
     );
 
+    // No user found
     if (result.rowCount === 0) {
-      // no such email
-      res.render("login.ejs");
+      return res.render("login.ejs", {
+        error: "No account found with this email."
+      });
     }
+
     const user = result.rows[0];
 
-    if (user.password != passwordentered) {
-      res.render("login.ejs");
+    // 🚫 Google-created account (no password in DB)
+    if (user.password === null) {
+      return res.render("login.ejs", {
+        error: "This account was created using Google. Please sign in with Google or set a password."
+      });
     }
-     req.session.user = {
-      id : user.id,
-      email: email,
+
+    // ❌ Wrong password (plain comparison for now)
+    if (user.password !== passwordentered) {
+      return res.render("login.ejs", {
+        error: "Incorrect password. Please try again."
+      });
+    }
+
+    // ✅ Successful login
+    req.session.user = {
+      id: user.id,
+      email,
       name: user.name,
-      profile_pic: user.profile_pic 
+      profile_pic: user.profile_pic
     };
-    res.redirect('/home');
+
+    res.redirect("/home");
+
   } catch (err) {
     console.error("DB error:", err);
     res.status(500).send("Server error");
   }
 });
+
+
 
 app.post("/transactions", (req, res) => {
   const note = req.body["note"];
