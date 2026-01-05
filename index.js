@@ -1102,10 +1102,10 @@ app.post("/transactions", (req, res) => {
   db.query(query, values, async (err, result) => {
     if (err) {
       console.error("Error inserting transaction:", err);
-      res.render("transactions.ejs", { isInserted: false },user);
+      res.render("transactions.ejs", { isInserted: false ,user:req.session.user});
     } else {
       console.log("Transaction added successfully!");
-      res.render("transactions.ejs", { isInserted: true },user);
+      res.render("transactions.ejs", { isInserted: true ,user:req.session.user});
     }
   });
 });
@@ -1134,17 +1134,16 @@ app.post("/budget", async (req, res) => {
       [monthDateStr, userId]
     );
 
-    if (existing.rows.length) {
-      await db.query(
-        "UPDATE budget SET budget_amount = $1, updated_at = CURRENT_TIMESTAMP WHERE month_year = $2 AND user_id = $3",
-        [budgetAmount, monthDateStr, userId]
-      );
-    } else {
-      await db.query(
-        "INSERT INTO budget (month_year, budget_amount, user_id) VALUES ($1, $2, $3)",
-        [monthDateStr, budgetAmount, userId]
-      );
-    }
+   await db.query(
+  `INSERT INTO budget (month_year, budget_amount, user_id)
+   VALUES ($1, $2, $3)
+   ON CONFLICT (month_year, user_id)
+   DO UPDATE SET
+     budget_amount = EXCLUDED.budget_amount,
+     updated_at = CURRENT_TIMESTAMP`,
+  [monthDateStr, budgetAmount, userId]
+  );
+
 
     res.redirect("/budget");
   } catch (err) {
