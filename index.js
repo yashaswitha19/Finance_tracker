@@ -467,7 +467,8 @@ app.get("/signup", (req, res) => {
 
 app.get("/transactions", isAuthenticated,async (req, res) => {
   res.render("transactions.ejs", { 
-    isInserted: false 
+    isInserted: false,
+    user: req.user || req.session.user
   });
 });
 
