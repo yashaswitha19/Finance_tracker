@@ -1102,10 +1102,10 @@ app.post("/transactions", (req, res) => {
   db.query(query, values, async (err, result) => {
     if (err) {
       console.error("Error inserting transaction:", err);
-      res.render("transactions.ejs", { isInserted: false });
+      res.render("transactions.ejs", { isInserted: false },user);
     } else {
       console.log("Transaction added successfully!");
-      res.render("transactions.ejs", { isInserted: true });
+      res.render("transactions.ejs", { isInserted: true },user);
     }
   });
 });
@@ -1113,31 +1113,28 @@ app.post("/transactions", (req, res) => {
 app.post("/budget", async (req, res) => {
   try {
     const { amount, month } = req.body;
-    const userId = req.session.user?.id; // Safe access using optional chaining
-    
-    if (!userId) {
-      return res.status(401).send("Unauthorized");
-    }
+    const userId = req.session.user?.id;
 
-    if (!amount || !month) {
-      return res.status(400).send("Amount and month are required");
-    }
+    console.log("Budget submit payload:", { amount, month, userId });
+
+    if (!userId) return res.status(401).send("Unauthorized");
+    if (!amount || !month) return res.status(400).send("Amount and month are required");
+
+    if (!/^\d{4}-\d{2}$/.test(month.trim()))
+      return res.status(400).send("Invalid month format (YYYY-MM)");
 
     const budgetAmount = parseFloat(amount.trim());
-    const monthTrimmed = month.trim();
-
-    if (budgetAmount <= 0) {
+    if (isNaN(budgetAmount) || budgetAmount <= 0)
       return res.status(400).send("Budget amount must be greater than 0");
-    }
 
-    const monthDateStr = monthTrimmed + "-01";
+    const monthDateStr = month.trim() + "-01";
 
-    const existingBudget = await db.query(
-      "SELECT * FROM budget WHERE month_year = $1 AND user_id = $2",
+    const existing = await db.query(
+      "SELECT 1 FROM budget WHERE month_year = $1 AND user_id = $2",
       [monthDateStr, userId]
     );
 
-    if (existingBudget.rows.length > 0) {
+    if (existing.rows.length) {
       await db.query(
         "UPDATE budget SET budget_amount = $1, updated_at = CURRENT_TIMESTAMP WHERE month_year = $2 AND user_id = $3",
         [budgetAmount, monthDateStr, userId]
@@ -1151,10 +1148,11 @@ app.post("/budget", async (req, res) => {
 
     res.redirect("/budget");
   } catch (err) {
-    console.error("Error setting budget:", err);
+    console.error("Error setting budget:", err.message, err.stack);
     res.status(500).send("Server Error");
   }
 });
+
 
 app.get("/profile", isAuthenticated,(req, res) => {
   const { error, success } = req.query;
