@@ -465,7 +465,7 @@ app.get("/signup", (req, res) => {
   res.render("signup.ejs");
 });
 
-app.get("/transactions", isAuthenticated,(req, res) => {
+app.get("/transactions", isAuthenticated,async (req, res) => {
   res.render("transactions.ejs", { 
     isInserted: false 
   });
@@ -1098,7 +1098,7 @@ app.post("/transactions", (req, res) => {
   `;
   const values = [type, amount, category, date, note, user_id];
 
-  db.query(query, values, (err, result) => {
+  db.query(query, values, async (err, result) => {
     if (err) {
       console.error("Error inserting transaction:", err);
       res.render("transactions.ejs", { isInserted: false });
