@@ -1,0 +1,309 @@
+<!-- Chatbot Styles -->
+<style>
+    .finance-chatbot-container {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 9999;
+    }
+
+    .finance-chatbot-toggle {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+    }
+
+    .finance-chatbot-toggle:hover {
+        transform: scale(1.1);
+    }
+
+    .finance-chatbot-toggle i {
+        color: white;
+        font-size: 28px;
+    }
+
+    .finance-chatbot-window {
+        position: fixed;
+        bottom: 100px;
+        right: 20px;
+        width: 380px;
+        height: 550px;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+        display: none;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .finance-chatbot-window.show {
+        display: flex;
+    }
+
+    .finance-chatbot-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+    }
+
+    .finance-chatbot-header h5 {
+        margin: 0 0 5px 0;
+        font-size: 16px;
+    }
+
+    .finance-chatbot-header p {
+        margin: 0;
+        font-size: 12px;
+        opacity: 0.9;
+    }
+
+    .finance-chatbot-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        background: #f8f9fa;
+    }
+
+    .finance-chat-message {
+        margin-bottom: 16px;
+        display: flex;
+        gap: 8px;
+    }
+
+    .finance-chat-message.user {
+        flex-direction: row-reverse;
+    }
+
+    .finance-chat-bubble {
+        max-width: 75%;
+        padding: 12px 16px;
+        border-radius: 18px;
+        word-wrap: break-word;
+        font-size: 14px;
+    }
+
+    .finance-chat-message.bot .finance-chat-bubble {
+        background: white;
+        color: #2d3748;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+
+    .finance-chat-message.user .finance-chat-bubble {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .finance-chatbot-input-container {
+        padding: 16px 20px;
+        background: white;
+        border-top: 1px solid #e2e8f0;
+        display: flex;
+        gap: 8px;
+    }
+
+    .finance-chatbot-input {
+        flex: 1;
+        border: 1px solid #cbd5e0;
+        border-radius: 24px;
+        padding: 10px 16px;
+        outline: none;
+        font-size: 14px;
+    }
+
+    .finance-chatbot-send {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        color: white;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .finance-chatbot-send:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    @media (max-width: 768px) {
+        .finance-chatbot-window {
+            width: calc(100vw - 40px);
+            height: calc(100vh - 140px);
+        }
+    }
+</style>
+
+<!-- Chatbot HTML -->
+<div class="finance-chatbot-container">
+    <div class="finance-chatbot-window" id="financeChatWindow">
+        <div class="finance-chatbot-header">
+            <h5>💰 Finance Assistant</h5>
+            <p>Ask me about your finances</p>
+        </div>
+
+        <div class="finance-chatbot-messages" id="financeChatMessages">
+            <div class="finance-chat-message bot">
+                <div class="finance-chat-bubble">
+                    👋 Hi! Ask me about your income, expenses, or budget!
+                </div>
+            </div>
+        </div>
+
+        <div class="finance-chatbot-input-container">
+            <input 
+                type="text" 
+                class="finance-chatbot-input" 
+                id="financeChatInput" 
+                placeholder="Type your question..."
+            >
+            <button class="finance-chatbot-send" id="financeChatSend">
+                <i class="bi bi-send-fill"></i>
+            </button>
+        </div>
+    </div>
+
+    <button class="finance-chatbot-toggle" id="financeChatToggle">
+        <i class="bi bi-chat-dots-fill"></i>
+    </button>
+</div>
+
+<script>
+(function() {
+    console.log("💬 Finance chatbot initializing...");
+    
+    const chatWindow = document.getElementById('financeChatWindow');
+    const chatToggle = document.getElementById('financeChatToggle');
+    const chatInput = document.getElementById('financeChatInput');
+    const chatSend = document.getElementById('financeChatSend');
+    const chatMessages = document.getElementById('financeChatMessages');
+    
+    let isOpen = false;
+
+    // Toggle chat window
+    chatToggle.addEventListener('click', function() {
+        console.log("🖱️ Toggle clicked");
+        isOpen = !isOpen;
+        if (isOpen) {
+            chatWindow.classList.add('show');
+            chatInput.focus();
+        } else {
+            chatWindow.classList.remove('show');
+        }
+    });
+
+    // Send message on button click
+    chatSend.addEventListener('click', function() {
+        console.log("🖱️ Send button clicked");
+        sendFinanceMessage();
+    });
+
+    // Send message on Enter key
+    chatInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            console.log("⌨️ Enter key pressed");
+            sendFinanceMessage();
+        }
+    });
+
+    async function sendFinanceMessage() {
+        const message = chatInput.value.trim();
+        console.log("📤 Attempting to send:", message);
+        
+        if (!message) {
+            console.log("❌ Empty message");
+            return;
+        }
+
+        // Disable input while sending
+        chatInput.disabled = true;
+        chatSend.disabled = true;
+
+        // Add user message to UI
+        addFinanceMessage(message, 'user');
+        chatInput.value = '';
+
+        // Show loading
+        addFinanceMessage('Thinking...', 'bot', 'loading');
+
+        try {
+            console.log("🌐 Sending POST request to /api/chatbot");
+            console.log("📦 Payload:", JSON.stringify({ message }));
+            
+            const response = await fetch('/api/chatbot', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ message: message })
+            });
+
+            console.log("📥 Response received, status:", response.status);
+            
+            // Remove loading message
+            removeLoadingMessage();
+
+            if (!response.ok) {
+                console.error("❌ Response not OK:", response.status, response.statusText);
+                addFinanceMessage('Sorry, there was an error. Please try again.', 'bot');
+                return;
+            }
+
+            const data = await response.json();
+            console.log("📦 Response data:", data);
+
+            if (data.success && data.reply) {
+                addFinanceMessage(data.reply, 'bot');
+            } else {
+                addFinanceMessage(data.reply || 'Sorry, I couldn\'t process that.', 'bot');
+            }
+
+        } catch (error) {
+            console.error("❌ Fetch error:", error);
+            removeLoadingMessage();
+            addFinanceMessage('Sorry, connection failed. Please try again.', 'bot');
+        } finally {
+            // Re-enable input
+            chatInput.disabled = false;
+            chatSend.disabled = false;
+            chatInput.focus();
+        }
+    }
+
+    function addFinanceMessage(text, type, id) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `finance-chat-message ${type}`;
+        if (id) messageDiv.id = id;
+        
+        const bubble = document.createElement('div');
+        bubble.className = 'finance-chat-bubble';
+        bubble.textContent = text;
+        
+        messageDiv.appendChild(bubble);
+        chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        
+        console.log("💬 Added message:", type, text.substring(0, 50));
+    }
+
+    function removeLoadingMessage() {
+        const loading = document.getElementById('loading');
+        if (loading) {
+            loading.remove();
+            console.log("🗑️ Removed loading message");
+        }
+    }
+
+    console.log("✅ Finance chatbot ready!");
+})();
+</script>

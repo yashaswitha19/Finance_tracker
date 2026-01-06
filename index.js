@@ -10,6 +10,7 @@ import path from "path";
 import fs from "fs";
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
+import { GoogleGenAI } from "@google/genai";
 
 console.log("DB CONFIG =", {
   user: process.env.DB_USER,
@@ -23,6 +24,12 @@ let db;
 const app = express();
 const port = 3000;
 const PORT = process.env.PORT || 3000;
+
+const ai = new GoogleGenAI({ 
+  apiKey: process.env.GEMINI_API_KEY 
+});
+
+app.use(express.json()); 
 
 app.use((req, res, next) => {
   res.locals.user = req.session ? req.session.user : null;
@@ -1445,6 +1452,85 @@ app.post("/update-profile-picture", upload.single("profilePic"), async (req, res
   } catch (err) {
     console.error("Error updating profile picture:", err);
     res.status(500).send("Server error");
+  }
+});
+
+app.get("/api/chatbot/stats", isAuthenticated, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    const currentDate = new Date();
+    const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+    const lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+
+    const [incomeResult, expenseResult] = await Promise.all([
+      db.query(
+        "SELECT COALESCE(SUM(amount), 0) AS total FROM transactions WHERE type = 'income' AND user_id = $1 AND date >= $2 AND date <= $3",
+        [userId, firstDay, lastDay]
+      ),
+      db.query(
+        "SELECT COALESCE(SUM(amount), 0) AS total FROM transactions WHERE type = 'expense' AND user_id = $1 AND date >= $2 AND date <= $3",
+        [userId, firstDay, lastDay]
+      )
+    ]);
+
+    res.json({
+      income: parseFloat(incomeResult.rows[0].total) || 0,
+      expense: parseFloat(expenseResult.rows[0].total) || 0,
+      success: true
+    });
+  } catch (err) {
+    console.error("Stats error:", err);
+    res.status(500).json({ success: false });
+  }
+});
+
+app.post("/api/chatbot", isAuthenticated, async (req, res) => {
+  try {
+    const { message } = req.body;
+    const userId = req.session.user.id;
+    
+    // 1. Fetch the data (including categoryBreakdown)
+    const stats = await getDashboardData(userId); 
+
+    // 2. Build the detailed prompt (Make sure this variable is used!)
+    const prompt = `
+       You are a helpful personal finance assistant. 
+       User Financial Data:
+       - Total Income: ₹${stats.totalincome}
+       - Total Expenses: ₹${stats.totalexpense}
+       - Monthly Budget: ₹${stats.budget}
+       
+       DETAILED EXPENSES BY CATEGORY: 
+       ${JSON.stringify(stats.categoryBreakdown)}
+
+       RECENT TRANSACTIONS: 
+       ${JSON.stringify(stats.transactions)}
+
+       User Question: "${message}"
+
+       NOTE: If the user asks about a specific category like "food", look at the 'DETAILED EXPENSES BY CATEGORY' list above. 
+       If the category is not listed, the amount spent is ₹0.
+    `;
+
+    // 3. SEND THE PROMPT VARIABLE TO THE AI
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash", 
+      contents: [{
+        role: 'user',
+        parts: [{ text: prompt }] // Use the variable we defined above
+      }]
+    });
+
+    res.json({
+      success: true,
+      reply: response.text 
+    });
+  } catch (err) {
+    console.error("Chatbot Error:", err);
+    res.status(500).json({
+      success: false,
+      reply: "Sorry, I encountered an error processing your request."
+    });
   }
 });
 
