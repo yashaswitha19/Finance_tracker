@@ -29,7 +29,9 @@
 </head>
 
 <body>
-    <%- include('partials/sidebar', {Active: 'managetr',user: user }) %>
+ <%- include('partials/sidebar', { Active: 'managetr', user }) %>
+
+        <p>USER DEBUG: <%= JSON.stringify(user) %></p>
 
         <div class="main-content">
             <div class="container-fluid">
@@ -265,6 +267,7 @@
             }
         </script>
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+        
         <%- include('partials/chatbot') %>
 </body>
 
