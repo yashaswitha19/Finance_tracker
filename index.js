@@ -52,8 +52,24 @@ app.use(passport.session());
 
 
 // serialize user
-passport.serializeUser((user, done) => done(null, user));
-passport.deserializeUser((user, done) => done(null, user));
+passport.serializeUser((user, done) => done(null, user.id));
+passport.deserializeUser(async (id, done) => {
+  try {
+    // Fetch complete user from database
+    const result = await db.query(
+      'SELECT id, email, name, profile_pic FROM users WHERE id = $1',
+      [id]
+    );
+    
+    if (result.rows.length > 0) {
+      done(null, result.rows[0]);
+    } else {
+      done(new Error('User not found'));
+    }
+  } catch (err) {
+    done(err);
+  }
+});
 
 passport.use(
   new GoogleStrategy(
@@ -479,6 +495,8 @@ app.get("/transactions", isAuthenticated,async (req, res) => {
   });
 });
 
+
+
 app.get('/home', isAuthenticated, async (req, res) => {
   try {
     const userId = req.session.user.id;  // Get logged-in user's ID
@@ -648,27 +666,21 @@ app.get('/home', isAuthenticated, async (req, res) => {
   }
 });
 
-app.get("/managetr", isAuthenticated, async (req, res) => {
-  try {
-    const u = req.user || req.session.user || {};
 
-  const userString =
-    u.displayName ||
-    (u.name?.givenName && u.name?.familyName
-      ? `${u.name.givenName} ${u.name.familyName}`
-      : u.name?.givenName ||
-        u.name?.familyName ||
-        u.name ||
-        "User");
-    const userId = req.session.user.id;  // Get user ID from session
+
+app.get('/managetr', async (req, res) => {
+  try {
+    // Use req.user consistently (populated by deserializeUser)
+    const userId = req.user.id;
     const dashboardData = await getDashboardData(userId);
+    
     res.render("managetr.ejs", {
       ...dashboardData,
-      user: userString
+      user: req.user  // Pass complete user object
     });
   } catch (err) {
-    console.error("Error:", err);
-    res.status(500).send("Server Error");
+    console.error("Error loading manage transactions:", err);
+    res.status(500).send("Error loading page");
   }
 });
 
@@ -859,7 +871,7 @@ app.get("/budget", isAuthenticated, async (req, res) => {
 app.post("/managetr", async (req, res) => {
   try {
     const { type, category, startDate, endDate, note } = req.body;
-    const userId = req.session.user.id;  // Get user ID from session
+    const userId = req.user.id;  // Get user ID from session
 
     let whereConditions = ["user_id = $1"];  // Always filter by user_id first
     const params = [userId];
@@ -971,7 +983,7 @@ app.post("/managetr", async (req, res) => {
     console.log("Filtered Total Expense:", totalExpense);
     console.log("Transactions Count:", transactionsResult.rows.length);
     
-    const u = req.user || req.session.user || {};
+    const u = req.user ||  {};
 
   const userString =
     u.displayName ||
