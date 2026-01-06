@@ -650,11 +650,21 @@ app.get('/home', isAuthenticated, async (req, res) => {
 
 app.get("/managetr", isAuthenticated, async (req, res) => {
   try {
+    const u = req.user || req.session.user || {};
+
+  const userString =
+    u.displayName ||
+    (u.name?.givenName && u.name?.familyName
+      ? `${u.name.givenName} ${u.name.familyName}`
+      : u.name?.givenName ||
+        u.name?.familyName ||
+        u.name ||
+        "User");
     const userId = req.session.user.id;  // Get user ID from session
     const dashboardData = await getDashboardData(userId);
     res.render("managetr.ejs", {
       ...dashboardData,
-      user: req.session.user
+      user: userString
     });
   } catch (err) {
     console.error("Error:", err);
@@ -960,13 +970,24 @@ app.post("/managetr", async (req, res) => {
     console.log("Filtered Total Income:", totalIncome);
     console.log("Filtered Total Expense:", totalExpense);
     console.log("Transactions Count:", transactionsResult.rows.length);
+    
+    const u = req.user || req.session.user || {};
+
+  const userString =
+    u.displayName ||
+    (u.name?.givenName && u.name?.familyName
+      ? `${u.name.givenName} ${u.name.familyName}`
+      : u.name?.givenName ||
+        u.name?.familyName ||
+        u.name ||
+        "User");
 
     res.render("managetr.ejs", {
       totalincome: totalIncome,
       totalexpense: totalExpense,
       transactions: transactionsResult.rows,
       budget: bud,
-      user: req.session.user  // Pass user for template access
+      user: userString  // Pass user for template access
     });
   } catch (err) {
     console.error("Error filtering transactions:", err);
