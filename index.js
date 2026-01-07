@@ -1548,7 +1548,7 @@ app.post("/api/chatbot", isAuthenticated, async (req, res) => {
 
     // 3. SEND THE PROMPT VARIABLE TO THE AI
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash", 
+      model: "gemini-3-flash-preview", 
       contents: [{
         role: 'user',
         parts: [{ text: prompt }] // Use the variable we defined above
