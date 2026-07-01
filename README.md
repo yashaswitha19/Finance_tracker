@@ -5,7 +5,7 @@ A comprehensive full-stack web application designed to help users track income, 
 ## 🌟 Key Features
 
 - **Smart Dashboard:** View your Total Income, Total Expenses, and All-Time Balance at a glance.
-- **AI Financial Assistant:** Powered by **Gemini 2.5 Flash**. Ask questions like *"How much did I spend on food?"* or *"Am I over my budget?"*
+- **AI Financial Assistant:** Ask questions like *"How much did I spend on food?"* or *"Am I over my budget?"*
 - **Transaction Management:** Full CRUD (Create, Read, Update, Delete) functionality for all your financial records.
 - **Budget Tracking:** Set monthly limits and get visual warnings when you approach or exceed them.
 - **Detailed Reports:** Filter data by date range and view category-wise breakdowns.
@@ -18,7 +18,6 @@ A comprehensive full-stack web application designed to help users track income, 
 
 - **Backend:** Node.js, Express.js
 - **Database:** PostgreSQL
-- **AI Engine:** Google GenAI SDK (`@google/genai`)
 - **Templating:** EJS (Embedded JavaScript)
 - **Styling:** Bootstrap 5 & Custom CSS
 - **File Handling:** Multer (for profile pictures)
@@ -62,7 +61,7 @@ CREATE TABLE budget (
 ⚙️ Installation & Setup
 
 1. Clone the Project
-git clone [https://github.com/Rohithasiri/Finanace.git](https://github.com/Rohithasiri/Finanace.git)
+git clone [t)
 cd Finanace
 
 2. Install Dependencies
