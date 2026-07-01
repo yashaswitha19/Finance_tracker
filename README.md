@@ -61,7 +61,7 @@ CREATE TABLE budget (
 ⚙️ Installation & Setup
 
 1. Clone the Project
-git clone [t)
+git clone [https://github.com/yashaswitha19/Finance_tracker.git]
 cd Finanace
 
 2. Install Dependencies
